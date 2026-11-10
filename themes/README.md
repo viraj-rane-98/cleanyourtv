@@ -240,6 +240,12 @@ Netflix, YouTube, Prime Video and Hotstar on Android TV are `com.netflix.ninja`,
 }
 ```
 
+On this fork, **Find wallpapers** in Launcher settings searches Wallhaven for safe-for-work 4K
+landscapes and shows them in place of these files. The downloads are a private overlay: the theme
+folder on the TV is not changed, and **Restore theme wallpapers** on that screen goes back to the
+theme's own pictures. When `app_wallpapers` is set, the first results replace those dock pictures
+too, reused in order when there are fewer pictures than dock apps.
+
 The last displayed picture is remembered on the TV, so a restart or reboot resumes from it rather than
 starting over at the first image in `sequential` mode. Missing an interval while the TV is asleep or
 unplugged does not replay the missed pictures: Home moves on at most once when it wakes. Replacing the

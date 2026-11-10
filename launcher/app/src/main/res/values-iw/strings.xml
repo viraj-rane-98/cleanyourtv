@@ -122,6 +122,18 @@
     <string name="wallpaper_none">ללא</string>
     <string name="wallpaper_applied">הטפט שונה</string>
     <string name="wallpaper_theme_default">ברירת המחדל של ערכת הנושא</string>
+    <string name="find_wallpapers">מצא טפטים</string>
+    <string name="find_wallpapers_hint">נוף ב-4K, בטוח לצפייה. לחצו על חיפוש במקלדת.</string>
+    <string name="find_wallpapers_query_hint">שם</string>
+    <string name="wallpaper_finder_searching">מחפש</string>
+    <string name="wallpaper_finder_progress">%1$d/%2$d הורדו</string>
+    <string name="wallpaper_finder_offline">אין חיבור</string>
+    <string name="wallpaper_finder_none">לא נמצא ב-4K</string>
+    <string name="wallpaper_finder_kept">הטפטים הנוכחיים נשמרו</string>
+    <string name="wallpaper_finder_failed">החיפוש נכשל</string>
+    <string name="wallpaper_finder_applied">הטפטים הוחלו</string>
+    <string name="wallpaper_finder_restore">שחזר את טפטי ערכת הנושא</string>
+    <string name="wallpaper_finder_restored">טפטי ערכת הנושא שוחזרו</string>
 
     <!-- Race-weekend panel (RaceWeekend). -->
     <string name="race_kicker">סבב %1$d · %2$s · %3$s</string>
