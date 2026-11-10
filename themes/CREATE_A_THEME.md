@@ -86,6 +86,11 @@ Static example:
 `wallpaper_moods` needs `wallpaper_rotation_minutes` greater than 0 to load the collection; for a
 single picture, set it to 0 and use `wallpaper.jpg`.
 
+`app_wallpapers` gives a dock app its own picture from `wallpapers/`, for example
+`"com.netflix.ninja": "1-netflix.jpg"`. Focus on that dock tile cross-fades to it; any other focus
+keeps the current wallpaper, and the rotation waits while the app picture is up. A launcher that
+predates the key ignores it, and `wallpaper.jpg` is what that launcher shows.
+
 ## 4. Push and check on the real TV
 
 ```bash

@@ -935,7 +935,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
             boolean onTile = newF != null && newF.getId() == R.id.card;
-            if (!onTile) hideGlass();
+            if (!onTile) {
+                hideGlass();
+                wallpaperPlayer.onFocus(null);
+            }
         });
 
         packageFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -1889,6 +1892,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             revealRect.set(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
             grid.requestChildRectangleOnScreen(item, revealRect, reducedMotion);
         }
+        wallpaperPlayer.onFocus(DockSlots.inDockRow(dockRow, singleRow, position, COLUMNS)
+                && adapter.isApp(position) ? adapter.packageAt(position) : null);
     }
 
     /** Refits the glass to the focused holder once the grid layout and tile dimensions settle. */
