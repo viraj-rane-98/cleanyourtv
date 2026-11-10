@@ -158,6 +158,7 @@ A new key needs one there in the same pull request.
 | `dock_opacity` | 30 to 100 | Opacity of the dock's band, in percent, so a wallpaper shows through it; 100 by default (the cinematic shelf keeps its own translucent band). Launcher settings on the TV offers 100, 70, 50 or 30, which wins until the next theme push or Follow theme |
 | `wallpaper_captions` | bool | With a rotating collection, the shown picture's name under the top-right buttons, from `wallpapers/captions.txt` (`001.jpg<TAB>Dusk over the peaks`, one per line); a picture without a line shows no name (`false` by default) |
 | `wallpaper_moods` | object | A rotating collection grouped by time of day: `{"morning": [...], "evening": [...], "night": [...]}` with file names from `wallpapers/`. Morning runs from sunrise to noon, evening until half an hour after sunset, night the rest, with the sun at config.xml's `latitude` and `longitude` (07:00 and 18:30 without them); a missing group rotates through every picture, and so does a group whose names are not the pictures in `wallpapers/` (a renamed picture, a suffix the launcher does not read), since those names are dropped one by one; every group is read by these three names only. Unset by default |
+| `app_wallpapers` | object | While a dock app is focused, cross-fade the background to a picture from `wallpapers/`: `{"com.netflix.ninja": "1-netflix.jpg", "com.google.android.youtube.tv": "2-youtube.jpg"}`. The name is one file in that folder (JPEG, PNG or WebP, the same names and the 10 MB cap as a collection). Focus on a button, a row below the dock, or an app with no entry keeps the current wallpaper. The rotation waits while one of these is up and carries on when focus leaves. A missing or unreadable file is skipped. Unset by default, and a theme without the key is unchanged. A launcher from before this key ignores it |
 | `tile_menu` | bool | Hold OK or press the remote's Menu key on a tile to open a small menu: Move, Remove from Home (with `app_library`) and App info. `true` by default since launcher 3.3; `false` keeps holding OK as a shortcut to the app's App info page and leaves Menu unchanged |
 | `festival` | string | Turns on a festive skin: the network pill becomes a diya whose flame follows the connection, Inputs a temple bell, Settings a marigold, and the first Home of the day gets a petal shower. `dussehra` and `diwali` have built-in greetings. `halloween` has its own skin: a jack-o'-lantern whose carved face glows while the TV is online and goes dark when it drops, a bat for Inputs that flaps when focused, a ghost for Settings that floats up, bats flying up over the first Home of the day, "Happy Halloween" and a pumpkin-orange glow. Launchers before it show any name as the diya skin, so a Halloween theme names it with `seasonal_skin` instead |
 | `seasonal_skin` | string | Names a festive skin like `festival` (`halloween`), read only when `festival` is empty or missing. Launchers that predate it ignore the key, so a theme that sets it shows the rest of its look there without the wrong skin; `festival_until`, `greeting` and `accent_color` apply to it as to `festival` |
@@ -218,6 +219,32 @@ For a wallpaper collection, place JPEG, PNG or WebP files in the theme’s `wall
 ```json
 { "wallpaper": true, "wallpaper_rotation_minutes": 30, "wallpaper_dim": 40, "wallpaper_order": "sequential" }
 ```
+
+A dock app can have its own picture. `app_wallpapers` maps the app's package to a file in the same
+`wallpapers/` folder. Focusing that dock tile cross-fades to it (about a third of a second); focus on
+anything else shows the wallpaper from `wallpaper.jpg` or the rotation again. The rotation does not
+change the picture while an app picture is up. A quick run along the dock waits until focus rests.
+Netflix, YouTube, Prime Video and Hotstar on Android TV are `com.netflix.ninja`,
+`com.google.android.youtube.tv`, `com.amazon.amazonvideo.livingroom` and `in.startv.hotstar`.
+
+```json
+{
+  "wallpaper": true,
+  "wallpaper_rotation_minutes": 30,
+  "app_wallpapers": {
+    "com.netflix.ninja": "1-netflix.jpg",
+    "com.google.android.youtube.tv": "2-youtube.jpg",
+    "com.amazon.amazonvideo.livingroom": "3-prime.jpg",
+    "in.startv.hotstar": "4-hotstar.jpg"
+  }
+}
+```
+
+On this fork, **Find wallpapers** in Launcher settings searches Wallhaven for safe-for-work 4K
+landscapes and shows them in place of these files. The downloads are a private overlay: the theme
+folder on the TV is not changed, and **Restore theme wallpapers** on that screen goes back to the
+theme's own pictures. When `app_wallpapers` is set, the first results replace those dock pictures
+too, reused in order when there are fewer pictures than dock apps.
 
 The last displayed picture is remembered on the TV, so a restart or reboot resumes from it rather than
 starting over at the first image in `sequential` mode. Missing an interval while the TV is asleep or

@@ -3,7 +3,8 @@
 [Back to the README](../README.md#the-launcher)
 
 A small native home screen for Android TV: **about 572 KB**, plain Java, built for TVs with 1 GB of RAM.
-No blur, no video, no network permission, no background services. This page has the details the
+No blur, no video, no background services. Find wallpapers, in Launcher settings, is the one use of the
+network: it downloads safe-for-work 4K pictures from Wallhaven into the app's private storage. This page has the details the
 README leaves out: settings, languages, remote keys and building it yourself. Every key a theme can
 set is in [`themes/README.md`](../themes/README.md#keys), and the opt-in switches with their
 screenshots are in [`docs/switches.md`](switches.md).
@@ -59,6 +60,10 @@ The launcher's own page has these rows, top to bottom:
 - **Wallpaper**: one picture from the theme's collection (or its `wallpaper.jpg`), **None**, or **Theme
   default**. A pick holds that picture and stops the rotation until you choose Theme default, press
   Follow theme, or push the theme again.
+- **Find wallpapers**: a name, then Search on the keyboard. Wallhaven's safe-for-work 4K landscapes
+  replace the wallpaper straight away (and the dock pictures when the theme sets `app_wallpapers`).
+  The downloads stay in the launcher's private files, not in the theme folder. **Restore theme
+  wallpapers** on that screen puts the theme's pictures back. The last five names stay on the screen.
 - **Animations** on or off, and **Advanced effects** (tile lift, icon zoom and smooth ambient-colour
   transitions; they may use more memory) once animations are on.
 - **Open on start**, only with `open_on_start_choice`: Off, or an app that opens instead of Home the first

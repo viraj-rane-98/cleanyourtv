@@ -669,6 +669,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return position >= 0 && position < items.size() ? items.get(position).pkg : null;
     }
 
+    /** An installed app, rather than a settings tile, a card or an empty dock slot. */
+    boolean isApp(int position) {
+        return position >= 0 && position < items.size() && items.get(position).kind == Entry.APP;
+    }
+
     /** The tile's artwork, its banner or else its icon, for the cinematic shelf's backdrop (HeroArt). */
     Drawable artworkAt(int position) {
         if (position < 0 || position >= items.size()) return null;

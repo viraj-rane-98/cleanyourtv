@@ -6,6 +6,8 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.text.TextUtils;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
@@ -22,8 +24,12 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -39,7 +45,21 @@ final class WallpaperPlayer {
     private final String order;
     private final SharedPreferences preferences;
     private final ExecutorService decoder = Executors.newSingleThreadExecutor();
+    private final Handler handler = new Handler(Looper.getMainLooper());
     private final Random random = new Random();
+    /** app_wallpapers: package to a file in wallpapers/. Empty means this player never leaves the rotation. */
+    private final Map<String, String> appWallpapers;
+    private final File wallpapersDir;
+    /** Full-screen fades are what reduced_motion turns off; a theme without app_wallpapers never starts one. */
+    private final boolean animate;
+    /** The app picture on screen, or null while the rotation picture is showing. */
+    private String appFile;
+    private boolean focusQueued;
+    private int focusGen;
+    private final Set<String> loggedMiss = new HashSet<>();
+    /** Decoded app pictures at screen size. Four is the dock this is aimed at; the least recent one is dropped. */
+    private final LinkedHashMap<String, Bitmap> appCache = new LinkedHashMap<>(8, 0.75f, true);
+    private ImageView fade;
     private final int width;
     /** config wallpaper_true_color: ARGB_8888 instead of RGB_565. */
     private final Bitmap.Config bitmapConfig;
@@ -82,6 +102,13 @@ final class WallpaperPlayer {
             preferences.edit().putString("collection", collection)
                     .remove("image").remove("changed").apply();
         }
+        appWallpapers = config.appWallpapers;
+        File themeDir = Config.dir(context);
+        // Finder pictures live beside the theme and win when a set is current.
+        File overlay = WallpaperSets.activeDir(WallpaperSets.root(context.getFilesDir()));
+        wallpapersDir = overlay != null ? overlay
+                : themeDir == null ? null : new File(themeDir, ThemeFiles.WALLPAPERS);
+        animate = config.animations && !config.reducedMotion;
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
         width = metrics.widthPixels;
         height = metrics.heightPixels;
@@ -91,10 +118,10 @@ final class WallpaperPlayer {
         names = config.wallpaperCaptions && config.wallpaperEnabled && !files.isEmpty()
                 ? WallpaperCaptions.read(files.get(0).getParentFile()) : Collections.emptyMap();
         caption = names.isEmpty() ? null : makeCaption(context, root);
-        if (config.wallpaperEnabled && !files.isEmpty()) {
+        if (config.wallpaperEnabled && (!files.isEmpty() || !appWallpapers.isEmpty())) {
             root.addView(image, 0, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-            showFirst();
+            if (!files.isEmpty()) showFirst();
         }
     }
 
@@ -139,7 +166,17 @@ final class WallpaperPlayer {
 
     /** Drops the wallpaper texture when Home is hidden and Android asks the process to free memory. */
     void releaseForMemoryPressure() {
-        if (current == null) return;
+        focusGen++;
+        appFile = null;
+        focusQueued = false;
+        handler.removeCallbacksAndMessages(null);
+        if (fade != null) {
+            fade.animate().cancel();
+            fade.setImageDrawable(null);
+            fade.setAlpha(0f);
+        }
+        appCache.clear();
+        if (current == null && image.getDrawable() == null) return;
         image.setImageDrawable(null);
         // The renderer may still have a queued frame that references this hardware bitmap. Drop our references and
         // let Android reclaim its native buffer after rendering releases it instead of recycling it mid-frame.
@@ -162,10 +199,31 @@ final class WallpaperPlayer {
     void close() {
         active = false;
         closed = true;
+        focusGen++;
+        handler.removeCallbacksAndMessages(null);
         decoder.shutdownNow();
     }
 
+    /**
+     * Dock focus landed on {@code pkg}, or left the dock apps when {@code pkg} is null.
+     * A theme with no app_wallpapers returns before any of this runs.
+     */
+    void onFocus(String pkg) {
+        if (appWallpapers.isEmpty() || closed) return;
+        String name = AppWallpapers.forFocus(appWallpapers, pkg);
+        if (Objects.equals(name, appFile) && !focusQueued) return;
+        focusQueued = true;
+        int gen = ++focusGen;
+        handler.removeCallbacksAndMessages(null);
+        handler.postDelayed(() -> {
+            focusQueued = false;
+            applyFocus(gen, name);
+        }, AppWallpapers.DEBOUNCE_MS);
+    }
+
     void update() {
+        // An app picture is up: the minute tick must not replace it. Focus leaving calls update() again.
+        if (AppWallpapers.rotationPaused(appFile)) return;
         if (!active || closed || loading || files.isEmpty()) return;
         String previous = preferences.getString("image", "");
         // A picture outside the time of day's group (the group changed) is replaced at once, not after the interval.
@@ -182,7 +240,7 @@ final class WallpaperPlayer {
             Bitmap bitmap = decode(next);
             root.post(() -> {
                 loading = false;
-                if (closed || !active) {
+                if (closed || !active || appFile != null) {
                     if (bitmap != null) bitmap.recycle();
                     return;
                 }
@@ -257,6 +315,119 @@ final class WallpaperPlayer {
         StringBuilder key = new StringBuilder();
         for (File file : images) key.append(file.getName()).append(':').append(file.length()).append(';');
         return key.toString();
+    }
+
+    private void applyFocus(int gen, String name) {
+        if (gen != focusGen || closed) return;
+        if (name == null) {
+            showApp(null, gen);
+            return;
+        }
+        Bitmap cached = appCache.get(name);
+        if (cached != null && !cached.isRecycled()) {
+            appFile = name;
+            showApp(cached, gen);
+            return;
+        }
+        File file = AppWallpapers.resolve(wallpapersDir, name);
+        if (file == null) {
+            miss(name);
+            if (appFile != null) showApp(null, gen);
+            return;
+        }
+        appFile = name;   // hold the rotation while this picture decodes
+        decoder.execute(() -> {
+            Bitmap bitmap = decode(file);
+            root.post(() -> {
+                if (gen != focusGen || closed) {
+                    if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+                    return;
+                }
+                if (bitmap == null) {
+                    miss(name);
+                    showApp(null, gen);
+                    return;
+                }
+                remember(name, bitmap);
+                showApp(bitmap, gen);
+            });
+        });
+    }
+
+    /** Log a missing or unreadable app picture once, then the caller falls back to the rotation picture. */
+    private void miss(String name) {
+        if (loggedMiss.add(name)) Log.w("TvHome.Wallpaper", "Skipping app wallpaper: " + name);
+    }
+
+    private void remember(String name, Bitmap bitmap) {
+        appCache.put(name, bitmap);
+        while (appCache.size() > 4) {
+            Iterator<Map.Entry<String, Bitmap>> it = appCache.entrySet().iterator();
+            Map.Entry<String, Bitmap> eldest = it.next();
+            if (name.equals(eldest.getKey())) break;
+            it.remove();
+            Bitmap dropped = eldest.getValue();
+            if (dropped != null && dropped != current && dropped != bitmap && !dropped.isRecycled()) {
+                dropped.recycle();
+            }
+        }
+    }
+
+    /** {@code bitmap} null returns to the rotation picture ({@link #current}). */
+    private void showApp(Bitmap bitmap, int gen) {
+        if (gen != focusGen || closed) return;
+        Bitmap next = bitmap != null ? bitmap : current;
+        crossfade(next, gen, () -> {
+            if (gen != focusGen) return;
+            if (bitmap == null) {
+                appFile = null;
+                update();
+            }
+        });
+    }
+
+    private void crossfade(Bitmap next, int gen, Runnable after) {
+        if (gen != focusGen || closed) return;
+        if (!animate || next == null) {
+            if (fade != null) {
+                fade.animate().cancel();
+                fade.setImageDrawable(null);
+                fade.setAlpha(0f);
+            }
+            if (next == null) {
+                image.setImageDrawable(null);
+                root.setBackgroundColor(backgroundColor);
+            } else {
+                image.setImageBitmap(next);
+                root.setBackground(null);
+            }
+            if (after != null) after.run();
+            return;
+        }
+        ensureFade();
+        fade.animate().cancel();
+        fade.setImageBitmap(next);
+        fade.setAlpha(0f);
+        fade.animate().alpha(1f).setDuration(AppWallpapers.FADE_MS).withEndAction(() -> {
+            if (gen != focusGen || closed) return;
+            image.setImageBitmap(next);
+            root.setBackground(null);
+            fade.setImageDrawable(null);
+            fade.setAlpha(0f);
+            if (after != null) after.run();
+        }).start();
+    }
+
+    private void ensureFade() {
+        if (fade != null) return;
+        fade = new ImageView(root.getContext());
+        fade.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        fade.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        fade.setFocusable(false);
+        fade.setAlpha(0f);
+        int at = root.indexOfChild(image);
+        root.addView(fade, Math.max(at, 0) + 1, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
     /** Puts a picture on screen and releases the previous one after a frame has drawn the new one. */

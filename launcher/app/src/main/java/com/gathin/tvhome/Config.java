@@ -207,6 +207,8 @@ final class Config {
     final File wallpaper;
     /** Rotating theme images, or the single wallpaper when no collection is configured. */
     final List<File> wallpapers;
+    /** Dock package to a wallpapers/ filename (config.json, app_wallpapers). Empty leaves the wallpaper alone. */
+    final Map<String, String> appWallpapers;
     final int wallpaperRotationMinutes;
     final int wallpaperDim;
     /** The dock band's opacity in percent (config.json dock_opacity, 30-100): below 100 the wallpaper shows through. */
@@ -297,7 +299,7 @@ final class Config {
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean homeIgnoreChannelKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly, boolean inputsCecStateOnly,
                    int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap,
-                   boolean settingsKeyClearTask) {
+                   boolean settingsKeyClearTask, Map<String, String> appWallpapers) {
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -372,6 +374,7 @@ final class Config {
         this.wallpaperEnabled = wallpaperEnabled;
         this.wallpaper = wallpaper;
         this.wallpapers = Collections.unmodifiableList(wallpapers);
+        this.appWallpapers = appWallpapers;
         this.wallpaperRotationMinutes = wallpaperRotationMinutes;
         this.wallpaperDim = wallpaperDim;
         this.dockOpacity = dockOpacity;
@@ -711,6 +714,35 @@ final class Config {
         // but launchers before it ignore the key, so a theme can carry it without older ones showing the diya skin.
         Festival festival = json == null ? Festival.NONE : Festival.parse(festivalName(json),
                 string(json, "festival_until", ""), string(json, "greeting", ""), string(json, "accent_color", ""));
+        // Read even when wallpaper is off, so a theme that sets the key is not reported as unread.
+        // A finder set is drawn instead of the theme files, so the dock map is still needed then.
+        JSONObject appWallpaperObject = json == null ? null : json.optJSONObject("app_wallpapers");
+        File finderDir = WallpaperSets.activeDir(WallpaperSets.root(ctx.getFilesDir()));
+        List<File> finderImages = finderDir == null ? Collections.emptyList() : WallpaperSets.images(finderDir);
+        boolean finderOn = !finderImages.isEmpty();
+        Map<String, String> appWallpapers = Collections.emptyMap();
+        if ((wallpaperEnabled || finderOn) && appWallpaperObject != null) {
+            Map<String, String> parsed = new HashMap<>();
+            JSONArray names = appWallpaperObject.names();
+            if (names != null) {
+                for (int i = 0; i < names.length(); i++) {
+                    String key = names.optString(i, "");
+                    String kept = AppWallpapers.keep(key, appWallpaperObject.opt(key));
+                    if (kept != null) parsed.put(key.trim(), kept);
+                }
+            }
+            appWallpapers = Collections.unmodifiableMap(parsed);
+        }
+        if (finderOn) {
+            wallpapers = new ArrayList<>(finderImages);
+            wallpaper = finderImages.get(0);
+            wallpaperEnabled = true;
+            if (!appWallpapers.isEmpty()) {
+                List<String> names = new ArrayList<>();
+                for (File image : finderImages) names.add(image.getName());
+                appWallpapers = WallpaperSlots.fill(WallpaperSlots.order(dock, appWallpapers.keySet()), names);
+            }
+        }
 
         return new Config(dock, fillDock, hidden, libraryApps, libraryExcludedApps, liveTv, liveTvAction, liveTvInputId, packageMap(launchActions), packageMap(appLabels),
                 packageMap(appBanners), panelService, panelAction, panelExtra, coocaaSources, inputAction, inputSources, inputUriScheme, Math.max(1, columns),
@@ -727,7 +759,7 @@ final class Config {
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap,
-                settingsKeyClearTask);
+                settingsKeyClearTask, appWallpapers);
     }
 
     /**
