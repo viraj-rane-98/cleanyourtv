@@ -104,7 +104,10 @@ final class WallpaperPlayer {
         }
         appWallpapers = config.appWallpapers;
         File themeDir = Config.dir(context);
-        wallpapersDir = themeDir == null ? null : new File(themeDir, ThemeFiles.WALLPAPERS);
+        // Finder pictures live beside the theme and win when a set is current.
+        File overlay = WallpaperSets.activeDir(WallpaperSets.root(context.getFilesDir()));
+        wallpapersDir = overlay != null ? overlay
+                : themeDir == null ? null : new File(themeDir, ThemeFiles.WALLPAPERS);
         animate = config.animations && !config.reducedMotion;
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
         width = metrics.widthPixels;

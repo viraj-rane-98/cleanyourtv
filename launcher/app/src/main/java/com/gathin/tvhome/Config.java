@@ -715,9 +715,13 @@ final class Config {
         Festival festival = json == null ? Festival.NONE : Festival.parse(festivalName(json),
                 string(json, "festival_until", ""), string(json, "greeting", ""), string(json, "accent_color", ""));
         // Read even when wallpaper is off, so a theme that sets the key is not reported as unread.
+        // A finder set is drawn instead of the theme files, so the dock map is still needed then.
         JSONObject appWallpaperObject = json == null ? null : json.optJSONObject("app_wallpapers");
+        File finderDir = WallpaperSets.activeDir(WallpaperSets.root(ctx.getFilesDir()));
+        List<File> finderImages = finderDir == null ? Collections.emptyList() : WallpaperSets.images(finderDir);
+        boolean finderOn = !finderImages.isEmpty();
         Map<String, String> appWallpapers = Collections.emptyMap();
-        if (wallpaperEnabled && appWallpaperObject != null) {
+        if ((wallpaperEnabled || finderOn) && appWallpaperObject != null) {
             Map<String, String> parsed = new HashMap<>();
             JSONArray names = appWallpaperObject.names();
             if (names != null) {
@@ -728,6 +732,16 @@ final class Config {
                 }
             }
             appWallpapers = Collections.unmodifiableMap(parsed);
+        }
+        if (finderOn) {
+            wallpapers = new ArrayList<>(finderImages);
+            wallpaper = finderImages.get(0);
+            wallpaperEnabled = true;
+            if (!appWallpapers.isEmpty()) {
+                List<String> names = new ArrayList<>();
+                for (File image : finderImages) names.add(image.getName());
+                appWallpapers = WallpaperSlots.fill(WallpaperSlots.order(dock, appWallpapers.keySet()), names);
+            }
         }
 
         return new Config(dock, fillDock, hidden, libraryApps, libraryExcludedApps, liveTv, liveTvAction, liveTvInputId, packageMap(launchActions), packageMap(appLabels),

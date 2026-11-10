@@ -277,7 +277,8 @@ debloat list. What the audit cannot do is prove intent: [docs/privacy.md](docs/p
 ## The launcher
 
 A small native home screen for Android TV: **about 572 KB**, plain Java, built for TVs with 1 GB of RAM.
-No blur, no video, no network permission, no background services. The **TV** needs Android 8.0 (API 26)
+No blur, no video, no background services. Find wallpapers (Launcher settings) is the one use of the
+network: safe-for-work 4K pictures from Wallhaven, stored in the app's private files. The **TV** needs Android 8.0 (API 26)
 or newer, the `minSdk` in [`launcher/app/build.gradle`](launcher/app/build.gradle); what is left on an older
 set is in [Troubleshooting](docs/TROUBLESHOOTING.md).
 
